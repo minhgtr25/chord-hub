@@ -443,26 +443,15 @@ export default function AuthModal() {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => handleOAuth("google")}
-                      disabled={loading}
-                      className="flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-medium transition disabled:opacity-50"
-                    >
-                      <GoogleIcon />
-                      Google
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleOAuth("facebook")}
-                      disabled={loading}
-                      className="flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-medium transition disabled:opacity-50"
-                    >
-                      <FacebookIcon />
-                      Facebook
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleOAuth("google")}
+                    disabled={loading}
+                    className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-medium transition disabled:opacity-50"
+                  >
+                    <GoogleIcon />
+                    Tiếp tục với Google
+                  </button>
                 </>
               )}
 
