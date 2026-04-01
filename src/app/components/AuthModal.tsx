@@ -24,54 +24,42 @@ export default function AuthModal() {
     openAuthModal(view);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    // Simulate tiny async delay for UX feel
-    setTimeout(() => {
-      if (authView === "forgot-password") {
-        alert("Đã gửi link khôi phục mật khẩu vào email của bạn!");
-        switchView("login");
+    if (authView === "forgot-password") {
+      const { error: sbError } = await (await import("../lib/supabase")).supabase.auth.resetPasswordForEmail(email);
+      if (sbError) setError(sbError.message);
+      else { alert("Đã gửi link khôi phục mật khẩu vào email của bạn!"); switchView("login"); }
+      setLoading(false);
+      return;
+    }
+
+    if (authView === "login") {
+      const result = await login(email, password);
+      if (!result.success) setError(result.error || "Đăng nhập thất bại");
+      else resetForm();
+    }
+
+    if (authView === "register") {
+      if (password.length < 6) {
+        setError("Mật khẩu phải có ít nhất 6 ký tự");
         setLoading(false);
         return;
       }
+      const result = await register(name, email, password);
+      if (!result.success) setError(result.error || "Đăng ký thất bại");
+      else { resetForm(); alert("Kiểm tra email để xác nhận tài khoản!"); }
+    }
 
-      if (authView === "login") {
-        const result = login(email, password);
-        if (!result.success) {
-          setError(result.error || "Đăng nhập thất bại");
-        } else {
-          resetForm();
-        }
-      }
-
-      if (authView === "register") {
-        if (password.length < 6) {
-          setError("Mật khẩu phải có ít nhất 6 ký tự");
-          setLoading(false);
-          return;
-        }
-        const result = register(name, email, password);
-        if (!result.success) {
-          setError(result.error || "Đăng ký thất bại");
-        } else {
-          resetForm();
-        }
-      }
-
-      setLoading(false);
-    }, 300);
+    setLoading(false);
   };
 
-  const handleSocialLogin = (provider: string) => {
-    // For mock, auto-login with a provider email
-    const result = login(`user_${provider.toLowerCase()}@chordhub.com`, "123456");
-    if (!result.success) {
-      // Auto-register if not exist
-      register(`${provider} User`, `user_${provider.toLowerCase()}@chordhub.com`, "123456");
-    }
+  const handleSocialLogin = async (provider: "Google" | "Facebook") => {
+    const { supabase } = await import("../lib/supabase");
+    await supabase.auth.signInWithOAuth({ provider: provider.toLowerCase() as "google" | "facebook" });
   };
 
   return (
@@ -106,17 +94,6 @@ export default function AuthModal() {
             <div className="mb-4 flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-700 dark:text-red-300">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
-            </div>
-          )}
-
-          {/* Demo accounts hint */}
-          {authView === "login" && !error && (
-            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-700 dark:text-blue-300">
-              <span className="font-semibold">Tài khoản demo:</span>
-              <div className="mt-1 space-y-0.5">
-                <div><code className="bg-blue-100 dark:bg-blue-900/40 px-1 rounded">minh@chordhub.com</code> / <code className="bg-blue-100 dark:bg-blue-900/40 px-1 rounded">123456</code></div>
-                <div><code className="bg-blue-100 dark:bg-blue-900/40 px-1 rounded">huong@chordhub.com</code> / <code className="bg-blue-100 dark:bg-blue-900/40 px-1 rounded">123456</code></div>
-              </div>
             </div>
           )}
 

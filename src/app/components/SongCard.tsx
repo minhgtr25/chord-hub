@@ -1,7 +1,6 @@
 import { Music, Clock, Eye, Edit, User } from "lucide-react";
 import { Link } from "react-router";
-import { Song } from "../data/mockSongs";
-import { findUserById } from "../data/mockUsers";
+import type { Song } from "../lib/songsService";
 
 interface SongCardProps {
   song: Song;
@@ -10,8 +9,8 @@ interface SongCardProps {
 }
 
 export default function SongCard({ song, view = "grid", showEditButton = false }: SongCardProps) {
-  const author = song.authorId ? findUserById(song.authorId) : null;
-  const authorName = author?.name || "Ẩn danh";
+  // authorName comes directly from the Supabase join in songsService
+  const authorName = song.authorName || "Ẩn danh";
 
   // Format relative time
   const timeAgo = (dateStr: string) => {

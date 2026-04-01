@@ -1,11 +1,25 @@
+import { useState, useEffect } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { User, Mail, Music, Calendar, Settings, Save, LogIn } from "lucide-react";
 import { useAuth } from "../utils/AuthContext";
-import { getSongs } from "../data/mockSongs";
+import { getSongs, getSongsByAuthor } from "../lib/songsService";
 
 export default function Profile() {
   const { user, openAuthModal, updateProfile } = useAuth();
+  const [allCount, setAllCount] = useState(0);
+  const [myCount, setMyCount] = useState(0);
+  const [lineCount, setLineCount] = useState(0);
+
+  useEffect(() => {
+    if (user) {
+      getSongs().then((all) => setAllCount(all.length));
+      getSongsByAuthor(user.id).then((mine) => {
+        setMyCount(mine.length);
+        setLineCount(mine.reduce((sum, s) => sum + s.lyrics.length, 0));
+      });
+    }
+  }, [user]);
 
   // Not logged in
   if (!user) {
@@ -37,9 +51,6 @@ export default function Profile() {
     );
   }
 
-  // Stats from real data
-  const allSongs = getSongs();
-  const mySongs = allSongs.filter((s) => s.authorId === user.id);
 
   const handleSave = () => {
     // updateProfile is called on each field change below, so this is just a confirmation
@@ -162,19 +173,19 @@ export default function Profile() {
             <div className="grid sm:grid-cols-3 gap-4">
               <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                 <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1">
-                  {mySongs.length}
+                  {myCount}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">Bài hát của tôi</div>
               </div>
               <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
                 <div className="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-1">
-                  {allSongs.length}
+                  {allCount}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">Tổng bài hát</div>
               </div>
               <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
                 <div className="text-3xl font-bold text-green-600 dark:text-green-400 mb-1">
-                  {mySongs.reduce((sum, s) => sum + s.lyrics.length, 0)}
+                  {lineCount}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">Tổng dòng nhạc</div>
               </div>

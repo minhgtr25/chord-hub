@@ -5,8 +5,9 @@ import Footer from "../components/Footer";
 import ChordLine from "../components/ChordLine";
 import ChordToolbar from "../components/ChordToolbar";
 import MusicPlayer from "../components/MusicPlayer";
-import { getSongById, saveSong, Song, LyricLine } from "../data/mockSongs";
-import { ArrowLeft, Info, Music, Edit3, Square, CheckSquare } from "lucide-react";
+import { getSongById, saveSong } from "../lib/songsService";
+import type { Song, LyricLine } from "../lib/songsService";
+import { ArrowLeft, Info, Music, Edit3, Square, CheckSquare, Loader2 } from "lucide-react";
 import { transposeChord, lyricsToRawText, rawTextToLyrics } from "../utils/chordUtils";
 import { useAuth } from "../utils/AuthContext";
 
@@ -17,6 +18,7 @@ export default function SongEditor() {
   const { user, openAuthModal } = useAuth();
 
   const [song, setSong] = useState<Song | null>(null);
+  const [songLoading, setSongLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [chordsVisible, setChordsVisible] = useState(true);
   const [fontSize, setFontSize] = useState(16);
@@ -34,50 +36,47 @@ export default function SongEditor() {
   const isEditor = user != null && ((song && song.authorId === user.id) || id === "new");
 
   useEffect(() => {
-    if (id && id !== "new") {
-
-      const foundSong = getSongById(id);
-      if (foundSong) {
-        setSong(foundSong);
-        setSelectedKey(foundSong.key);
-        setHistory([foundSong]);
-        setHistoryIndex(0);
+    async function loadSong() {
+      if (id && id !== "new") {
+        const foundSong = await getSongById(id);
+        if (foundSong) {
+          setSong(foundSong);
+          setSelectedKey(foundSong.key);
+          setHistory([foundSong]);
+          setHistoryIndex(0);
+        } else {
+          navigate("/");
+        }
+        setSongLoading(false);
       } else {
-        navigate("/songs");
+        if (!user) {
+          openAuthModal("login");
+          navigate("/");
+          return;
+        }
+        // New song template
+        const newSong: Song = {
+          id: "new",
+          title: "Bài hát mới",
+          artist: "Nghệ sĩ",
+          key: "C",
+          duration: "0:00",
+          genre: "Pop",
+          thumbnail: "https://images.unsplash.com/photo-1762917903361-99e0164dbcc5",
+          lyrics: [{ id: "1", text: "Nhập lời bài hát tại đây...", chords: [] }],
+          createdAt: new Date().toISOString().split('T')[0],
+          updatedAt: new Date().toISOString().split('T')[0],
+          authorId: user.id,
+        };
+        setSong(newSong);
+        setSelectedKey(newSong.key);
+        setHistory([newSong]);
+        setHistoryIndex(0);
+        setSongLoading(false);
       }
-    } else {
-      if (!user) {
-        openAuthModal("login");
-        navigate("/songs");
-        return;
-      }
-
-      // Create new song template
-      const newSong: Song = {
-        id: Date.now().toString(),
-        title: "Bài hát mới",
-        artist: "Nghệ sĩ",
-        key: "C",
-        duration: "0:00",
-        genre: "Pop",
-        thumbnail: "https://images.unsplash.com/photo-1762917903361-99e0164dbcc5",
-        lyrics: [
-          {
-            id: "1",
-            text: "Nhập lời bài hát tại đây...",
-            chords: [],
-          },
-        ],
-        createdAt: new Date().toISOString().split('T')[0],
-        updatedAt: new Date().toISOString().split('T')[0],
-        authorId: user.id,
-      };
-      setSong(newSong);
-      setSelectedKey(newSong.key);
-      setHistory([newSong]);
-      setHistoryIndex(0);
     }
-  }, [id, navigate]);
+    loadSong();
+  }, [id, navigate, user, openAuthModal]);
 
   // Khởi tạo raw text khi chuyển mode hoặc đổi bài
   useEffect(() => {
@@ -160,10 +159,17 @@ export default function SongEditor() {
     }
   };
 
-  const handleSave = () => {
-    if (song) {
-      saveSong(song);
+  const handleSave = async () => {
+    if (!song || !user) return;
+    const result = await saveSong(song, user.id);
+    if (result.success) {
       alert("Đã lưu bài hát thành công!");
+      // If it was a new song, navigate to the real ID
+      if (id === "new" && result.id) {
+        navigate(`/editor/${result.id}`, { replace: true });
+      }
+    } else {
+      alert(`Lỗi khi lưu: ${result.error}`);
     }
   };
 

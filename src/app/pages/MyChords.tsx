@@ -1,16 +1,29 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import SongCard from "../components/SongCard";
-import { getSongs } from "../data/mockSongs";
+import { getSongsByAuthor } from "../lib/songsService";
+import type { Song } from "../lib/songsService";
 import { useAuth } from "../utils/AuthContext";
-import { Plus, Search, Grid, List, Music2, LogIn } from "lucide-react";
+import { Plus, Search, Grid, List, Music2, LogIn, Loader2 } from "lucide-react";
 
 export default function MyChords() {
   const { user, openAuthModal } = useAuth();
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchTerm, setSearchTerm] = useState("");
+  const [mySongs, setMySongs] = useState<Song[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setLoading(true);
+      getSongsByAuthor(user.id).then((data) => {
+        setMySongs(data);
+        setLoading(false);
+      });
+    }
+  }, [user]);
 
   // Not logged in
   if (!user) {
@@ -41,11 +54,6 @@ export default function MyChords() {
       </div>
     );
   }
-
-  const allSongs = getSongs();
-  const mySongs = allSongs
-    .filter((s) => s.authorId === user.id)
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
   const filteredSongs = mySongs.filter((song) =>
     song.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -115,7 +123,11 @@ export default function MyChords() {
         </div>
 
         {/* Song list with edit enabled */}
-        {filteredSongs.length > 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+          </div>
+        ) : filteredSongs.length > 0 ? (
           <div
             className={
               viewMode === "grid"

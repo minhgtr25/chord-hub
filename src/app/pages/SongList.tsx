@@ -1,9 +1,9 @@
-import { useState } from "react";
-import { Link } from "react-router";
+import { useState, useEffect } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import SongCard from "../components/SongCard";
-import { getSongs } from "../data/mockSongs";
+import { getSongs } from "../lib/songsService";
+import type { Song } from "../lib/songsService";
 import { Grid, List, Search, SlidersHorizontal } from "lucide-react";
 
 export default function SongList() {
@@ -13,8 +13,11 @@ export default function SongList() {
   const [filterKey, setFilterKey] = useState<string>("all");
   const [filterGenre, setFilterGenre] = useState<string>("all");
   const [showFilters, setShowFilters] = useState(false);
+  const [songs, setSongs] = useState<Song[]>([]);
 
-  const songs = getSongs();
+  useEffect(() => {
+    getSongs().then(setSongs);
+  }, []);
 
   // Filter songs
   const filteredSongs = songs.filter((song) => {

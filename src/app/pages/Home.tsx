@@ -1,28 +1,29 @@
-import { useState } from "react";
-import { Link } from "react-router";
+import { useState, useEffect } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import SongCard from "../components/SongCard";
-import { getSongs } from "../data/mockSongs";
-import { Music2, Search, Grid, List, SlidersHorizontal, TrendingUp, Clock, Sparkles } from "lucide-react";
+import { getSongs } from "../lib/songsService";
+import type { Song } from "../lib/songsService";
+import { Music2, Search, Grid, List, TrendingUp, Clock, Loader2 } from "lucide-react";
 
 export default function Home() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterGenre, setFilterGenre] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"latest" | "all">("latest");
+  const [songs, setSongs] = useState<Song[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const songs = getSongs();
+  useEffect(() => {
+    getSongs().then((data) => {
+      setSongs(data);
+      setLoading(false);
+    });
+  }, []);
 
-  // Sort by updatedAt descending
-  const sortedSongs = [...songs].sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-  );
+  const recentSongs = songs.slice(0, 6);
+  const displaySongs = activeTab === "latest" ? recentSongs : songs;
 
-  const recentSongs = sortedSongs.slice(0, 6);
-  const displaySongs = activeTab === "latest" ? recentSongs : sortedSongs;
-
-  // Filter
   const filteredSongs = displaySongs.filter((song) => {
     const matchSearch =
       song.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -132,9 +133,7 @@ export default function Home() {
         {/* Results info */}
         <div className="flex items-center justify-between mb-4">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {filteredSongs.length} bài hát
-            {activeTab === "latest" && " gần đây"}
-            {searchTerm && ` · "${searchTerm}"`}
+            {loading ? "Đang tải..." : `${filteredSongs.length} bài hát${activeTab === "latest" ? " gần đây" : ""}${searchTerm ? ` · "${searchTerm}"` : ""}`}
           </p>
           {activeTab === "latest" && filteredSongs.length > 0 && (
             <button
@@ -146,15 +145,13 @@ export default function Home() {
           )}
         </div>
 
-        {/* Song list */}
-        {filteredSongs.length > 0 ? (
-          <div
-            className={
-              viewMode === "grid"
-                ? "grid sm:grid-cols-2 lg:grid-cols-3 gap-5"
-                : "space-y-3"
-            }
-          >
+        {/* Loading state */}
+        {loading ? (
+          <div className="flex items-center justify-center py-24">
+            <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+          </div>
+        ) : filteredSongs.length > 0 ? (
+          <div className={viewMode === "grid" ? "grid sm:grid-cols-2 lg:grid-cols-3 gap-5" : "space-y-3"}>
             {filteredSongs.map((song) => (
               <SongCard key={song.id} song={song} view={viewMode} />
             ))}

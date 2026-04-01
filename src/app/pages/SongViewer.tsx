@@ -3,9 +3,11 @@ import { useParams, useNavigate, Link } from "react-router";
 import Header from "../components/Header";
 import ChordLine from "../components/ChordLine";
 import MusicPlayer from "../components/MusicPlayer";
-import { getSongById, saveSong, Song } from "../data/mockSongs";
+import { getSongById } from "../lib/songsService";
+import type { Song } from "../lib/songsService";
 import { ArrowLeft, Music2, User, Columns2, Type, ChevronDown, ChevronUp, Edit3 } from "lucide-react";
 import { transposeChord } from "../utils/chordUtils";
+import { useAuth } from "../utils/AuthContext";
 
 export default function SongViewer() {
   const { id } = useParams();
@@ -19,9 +21,8 @@ export default function SongViewer() {
   const [fontSize, setFontSize] = useState(16);
   const [scrollSpeed, setScrollSpeed] = useState(0);
 
-  // Giả lập user hiện tại
-  const currentUser = { id: "user1" };
-  const isAuthor = song?.authorId === currentUser.id;
+  const { user } = useAuth();
+  const isAuthor = !!(user && song?.authorId === user.id);
 
   // Auto-scroll logic
   useEffect(() => {
@@ -54,27 +55,21 @@ export default function SongViewer() {
   }, [scrollSpeed]);
 
   useEffect(() => {
-    if (id) {
-      const foundSong = getSongById(id);
-      if (foundSong) {
-        setSong(foundSong);
-      } else {
-        navigate("/songs");
+    async function load() {
+      if (id) {
+        const foundSong = await getSongById(id);
+        if (foundSong) {
+          setSong(foundSong);
+        } else {
+          navigate("/");
+        }
       }
     }
+    load();
   }, [id, navigate]);
 
-  const handleAddNote = (lineId: string, note: string) => {
-    if (!song) return;
-    
-    const newSong = {
-      ...song,
-      lyrics: song.lyrics.map((line) =>
-        line.id === lineId ? { ...line, note } : line
-      ),
-    };
-    setSong(newSong);
-    saveSong(newSong);
+  const handleAddNote = (_lineId: string, _note: string) => {
+    // Notes are view-only; no save needed in viewer
   };
 
   if (!song) {

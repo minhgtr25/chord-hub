@@ -1,18 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import {
-  UserProfile,
-  authenticateUser,
-  registerUser,
-  updateUserProfile,
-  findUserById,
-  saveSession,
-  clearSession,
-  getSessionUserId,
-} from "../data/mockUsers";
+import { supabase } from "../lib/supabase";
+import type { User as SupabaseUser, Session } from "@supabase/supabase-js";
 
 export type AuthView = "login" | "register" | "forgot-password";
 
-// Public-facing user type (no password)
+// Public-facing user type
 export interface User {
   id: string;
   name: string;
@@ -25,46 +17,73 @@ export interface User {
 
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
+  loading: boolean;
   isAuthModalOpen: boolean;
   authView: AuthView;
   openAuthModal: (view?: AuthView) => void;
   closeAuthModal: () => void;
-  login: (email: string, password: string) => { success: boolean; error?: string };
-  register: (name: string, email: string, password: string) => { success: boolean; error?: string };
-  logout: () => void;
-  updateProfile: (updates: Partial<Pick<UserProfile, "name" | "bio" | "instrument" | "avatar">>) => void;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  updateProfile: (updates: Partial<Pick<User, "name" | "bio" | "instrument" | "avatar">>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function toPublicUser(p: UserProfile): User {
+// Convert Supabase user + profile to our User type
+function buildUser(supabaseUser: SupabaseUser, profile?: Record<string, unknown> | null): User {
   return {
-    id: p.id,
-    name: p.name,
-    email: p.email,
-    avatar: p.avatar,
-    bio: p.bio,
-    instrument: p.instrument,
-    createdAt: p.createdAt,
+    id: supabaseUser.id,
+    name: (profile?.name as string) || supabaseUser.email?.split("@")[0] || "User",
+    email: supabaseUser.email || "",
+    avatar: (profile?.avatar_url as string) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${supabaseUser.email}`,
+    bio: (profile?.bio as string) || undefined,
+    instrument: (profile?.instrument as string) || "Guitar",
+    createdAt: (profile?.created_at as string) || supabaseUser.created_at,
   };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authView, setAuthView] = useState<AuthView>("login");
 
-  // Restore session on mount
+  // Load profile from Supabase
+  async function fetchProfile(supabaseUser: SupabaseUser) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", supabaseUser.id)
+      .single();
+    setUser(buildUser(supabaseUser, profile));
+  }
+
+  // Listen to auth state changes
   useEffect(() => {
-    const sessionId = getSessionUserId();
-    if (sessionId) {
-      const profile = findUserById(sessionId);
-      if (profile) {
-        setUser(toPublicUser(profile));
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session?.user) {
+        fetchProfile(session.user).finally(() => setLoading(false));
       } else {
-        clearSession();
+        setLoading(false);
       }
-    }
+    });
+
+    // Subscribe to auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session?.user) {
+        fetchProfile(session.user);
+      } else {
+        setUser(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const openAuthModal = (view: AuthView = "login") => {
@@ -72,42 +91,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthModalOpen(true);
   };
 
-  const closeAuthModal = () => {
-    setIsAuthModalOpen(false);
-  };
+  const closeAuthModal = () => setIsAuthModalOpen(false);
 
-  const login = (email: string, password: string): { success: boolean; error?: string } => {
-    const result = authenticateUser(email, password);
-    if (result.success) {
-      setUser(toPublicUser(result.user));
-      saveSession(result.user.id);
-      closeAuthModal();
-      return { success: true };
+  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      // Translate Supabase error messages to Vietnamese
+      const msg = error.message.includes("Invalid login credentials")
+        ? "Email hoặc mật khẩu không đúng"
+        : error.message;
+      return { success: false, error: msg };
     }
-    return { success: false, error: result.error };
+    closeAuthModal();
+    return { success: true };
   };
 
-  const register = (name: string, email: string, password: string): { success: boolean; error?: string } => {
-    const result = registerUser(name, email, password);
-    if (result.success) {
-      setUser(toPublicUser(result.user));
-      saveSession(result.user.id);
-      closeAuthModal();
-      return { success: true };
+  const register = async (name: string, email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name }, // stored in raw_user_meta_data, trigger uses it
+      },
+    });
+    if (error) {
+      const msg = error.message.includes("already registered")
+        ? "Email này đã được đăng ký"
+        : error.message;
+      return { success: false, error: msg };
     }
-    return { success: false, error: result.error };
+    closeAuthModal();
+    return { success: true };
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    clearSession();
+    setSession(null);
   };
 
-  const updateProfileFn = (updates: Partial<Pick<UserProfile, "name" | "bio" | "instrument" | "avatar">>) => {
+  const updateProfile = async (updates: Partial<Pick<User, "name" | "bio" | "instrument" | "avatar">>) => {
     if (!user) return;
-    const updated = updateUserProfile(user.id, updates);
-    if (updated) {
-      setUser(toPublicUser(updated));
+    const dbUpdates: Record<string, string | undefined> = {};
+    if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.bio !== undefined) dbUpdates.bio = updates.bio;
+    if (updates.instrument !== undefined) dbUpdates.instrument = updates.instrument;
+    if (updates.avatar !== undefined) dbUpdates.avatar_url = updates.avatar;
+
+    const { error } = await supabase
+      .from("profiles")
+      .update(dbUpdates)
+      .eq("id", user.id);
+
+    if (!error) {
+      setUser({ ...user, ...updates });
     }
   };
 
@@ -115,6 +152,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
+        session,
+        loading,
         isAuthModalOpen,
         authView,
         openAuthModal,
@@ -122,7 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         register,
         logout,
-        updateProfile: updateProfileFn,
+        updateProfile,
       }}
     >
       {children}
