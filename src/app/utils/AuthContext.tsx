@@ -4,7 +4,6 @@ import type { User as SupabaseUser, Session } from "@supabase/supabase-js";
 
 export type AuthView = "login" | "register" | "forgot-password";
 
-// Public-facing user type
 export interface User {
   id: string;
   name: string;
@@ -15,7 +14,6 @@ export interface User {
   createdAt: string;
 }
 
-// After OAuth login, if profile is incomplete (e.g. Facebook without email)
 export interface PendingOAuthProfile {
   provider: "google" | "facebook";
   supabaseUser: SupabaseUser;
@@ -27,7 +25,6 @@ interface AuthContextType {
   loading: boolean;
   isAuthModalOpen: boolean;
   authView: AuthView;
-  // After OAuth login if profile needs info (Facebook)
   pendingOAuthProfile: PendingOAuthProfile | null;
   openAuthModal: (view?: AuthView) => void;
   closeAuthModal: () => void;
@@ -42,7 +39,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Convert Supabase user + profile to our User type
 function buildUser(supabaseUser: SupabaseUser, profile?: Record<string, unknown> | null): User {
   const meta = supabaseUser.user_metadata || {};
   return {
@@ -65,13 +61,10 @@ function buildUser(supabaseUser: SupabaseUser, profile?: Record<string, unknown>
   };
 }
 
-// Check if a user from OAuth is missing critical info (mainly Facebook without email)
-function needsProfileCompletion(supabaseUser: SupabaseUser): boolean {
+function isMissingProfile(supabaseUser: SupabaseUser): boolean {
   const provider = supabaseUser.app_metadata?.provider;
   if (provider === "facebook") {
-    // Facebook may not return email; check
-    const email = supabaseUser.email || supabaseUser.user_metadata?.email;
-    return !email;
+    return !supabaseUser.email && !supabaseUser.user_metadata?.email;
   }
   return false;
 }
@@ -84,7 +77,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authView, setAuthView] = useState<AuthView>("login");
   const [pendingOAuthProfile, setPendingOAuthProfile] = useState<PendingOAuthProfile | null>(null);
 
-  // Load profile from Supabase
   async function fetchProfile(supabaseUser: SupabaseUser) {
     const { data: profile } = await supabase
       .from("profiles")
@@ -94,13 +86,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(buildUser(supabaseUser, profile));
   }
 
-  // Listen to auth state changes
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
         const sbUser = session.user;
-        if (needsProfileCompletion(sbUser)) {
+        if (isMissingProfile(sbUser)) {
           const provider = sbUser.app_metadata?.provider as "google" | "facebook";
           setPendingOAuthProfile({ provider, supabaseUser: sbUser });
           setIsAuthModalOpen(true);
@@ -117,17 +108,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       if (session?.user) {
         const sbUser = session.user;
-        if (needsProfileCompletion(sbUser)) {
+        if (isMissingProfile(sbUser)) {
           const provider = sbUser.app_metadata?.provider as "google" | "facebook";
           setPendingOAuthProfile({ provider, supabaseUser: sbUser });
           setIsAuthModalOpen(true);
         } else {
           setPendingOAuthProfile(null);
           fetchProfile(sbUser);
-          // Auto-close modal on successful OAuth login (Google)
-          if (event === "SIGNED_IN") {
-            setIsAuthModalOpen(false);
-          }
+          if (event === "SIGNED_IN") setIsAuthModalOpen(false);
         }
       } else {
         setUser(null);
@@ -160,15 +148,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { success: true };
   };
 
+  // Register: call signUp → Supabase sends 6-digit OTP (configured in dashboard)
   const register = async (name: string, email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        data: { name },
-        // Use OTP email confirmation
-        emailRedirectTo: undefined,
-      },
+      options: { data: { name } },
     });
     if (error) {
       let msg = error.message;
@@ -177,34 +162,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return { success: false, error: msg };
     }
-    // Don't close modal — caller will switch to OTP step
     return { success: true };
   };
 
+  // Verify OTP sent by signUp (type: "signup")
   const verifyOtp = async (email: string, token: string): Promise<{ success: boolean; error?: string }> => {
-    const { error } = await supabase.auth.verifyOtp({
-      email,
-      token,
-      type: "signup",
-    });
+    const { error } = await supabase.auth.verifyOtp({ email, token, type: "signup" });
     if (error) {
       let msg = error.message;
-      if (msg.includes("Token has expired") || msg.includes("invalid")) {
+      if (msg.includes("Token has expired") || msg.includes("invalid") || msg.includes("expired")) {
         msg = "Mã không hợp lệ hoặc đã hết hạn. Vui lòng thử lại.";
       }
       return { success: false, error: msg };
     }
-    // After OTP verify, Supabase signs them in automatically — sign them out so they log in manually
+    // Sign out after verification so user logs in manually with password
     await supabase.auth.signOut();
     return { success: true };
   };
 
   const loginWithOAuth = async (provider: "google" | "facebook") => {
-    const redirectTo = `${window.location.origin}/`;
     await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo,
+        redirectTo: `${window.location.origin}/`,
         scopes: provider === "facebook" ? "email,public_profile" : undefined,
       },
     });
@@ -214,13 +194,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!pendingOAuthProfile) return { success: false, error: "Không có thông tin chờ xử lý" };
     const { supabaseUser } = pendingOAuthProfile;
 
-    // Update auth email if missing
     if (!supabaseUser.email && email) {
       const { error: emailError } = await supabase.auth.updateUser({ email });
       if (emailError) return { success: false, error: emailError.message };
     }
 
-    // Update profile
     const { error: profileError } = await supabase
       .from("profiles")
       .upsert({ id: supabaseUser.id, name, avatar_url: buildUser(supabaseUser).avatar }, { onConflict: "id" });
@@ -279,8 +257,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
+  if (context === undefined) throw new Error("useAuth must be used within an AuthProvider");
   return context;
 }
