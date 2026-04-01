@@ -8,10 +8,12 @@ import type { Song } from "../lib/songsService";
 import { ArrowLeft, Music2, User, Columns2, Type, ChevronDown, ChevronUp, Edit3 } from "lucide-react";
 import { transposeChord } from "../utils/chordUtils";
 import { useAuth } from "../utils/AuthContext";
+import { useToast } from "../utils/ToastContext";
 
 export default function SongViewer() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
   const [song, setSong] = useState<Song | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
@@ -305,7 +307,7 @@ export default function SongViewer() {
               <span>Chỉnh sửa</span>
             </Link>
             <button
-              onClick={() => alert("Tính năng chia sẻ đang được phát triển")}
+              onClick={() => showToast("Tính năng chia sẻ đang được phát triển", "info")}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-medium transition-colors"
             >
               <User className="w-5 h-5" />

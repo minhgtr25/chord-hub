@@ -1,46 +1,59 @@
-import { useState } from "react";
-import { Link, useLocation } from "react-router";
-import { Music2, Menu, X, Search, Moon, Sun, LogIn, LogOut, User } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Link, useLocation, useNavigate } from "react-router";
+import { Music2, Moon, Sun, LogIn, LogOut, ChevronDown, Settings } from "lucide-react";
 import { useAuth } from "../utils/AuthContext";
 
 export default function Header() {
   const { user, openAuthModal, logout } = useAuth();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
+  const navigate = useNavigate();
 
   const isActive = (path: string) => location.pathname === path;
 
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);
-    document.documentElement.classList.toggle('dark');
+    document.documentElement.classList.toggle("dark");
   };
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   return (
     <header className="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+        <div className="flex justify-between items-center h-14 sm:h-16">
+
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <Music2 className="w-8 h-8 text-blue-600" />
-            <span className="text-xl font-bold text-gray-900 dark:text-white">ChordHub</span>
+            <Music2 className="w-7 h-7 sm:w-8 sm:h-8 text-blue-600" />
+            <span className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">ChordHub</span>
           </Link>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-6">
+          {/* Desktop nav links */}
+          <nav className="hidden md:flex items-center gap-1">
             <Link
               to="/"
-              className={`px-3 py-2 rounded-md transition-colors ${
+              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                 isActive("/")
                   ? "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
                   : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
               }`}
             >
-              Home
+              Trang chủ
             </Link>
             <Link
               to="/songs"
-              className={`px-3 py-2 rounded-md transition-colors ${
+              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                 isActive("/songs")
                   ? "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
                   : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -51,7 +64,7 @@ export default function Header() {
             {user && (
               <Link
                 to="/my-chords"
-                className={`px-3 py-2 rounded-md transition-colors ${
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                   isActive("/my-chords")
                     ? "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
                     : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -60,187 +73,77 @@ export default function Header() {
                 Hợp âm của tôi
               </Link>
             )}
-            <Link
-              to="/profile"
-              className={`px-3 py-2 rounded-md transition-colors ${
-                isActive("/profile")
-                  ? "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
-                  : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-              }`}
-            >
-              Profile
-            </Link>
-            <Link
-              to="/help"
-              className={`px-3 py-2 rounded-md transition-colors ${
-                isActive("/help")
-                  ? "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
-                  : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-              }`}
-            >
-              Help
-            </Link>
           </nav>
 
-          {/* Right side actions */}
-          <div className="flex items-center gap-3">
-            {/* Search bar - hidden on mobile */}
-            <div className="hidden lg:flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2">
-              <Search className="w-4 h-4 text-gray-500" />
-              <input
-                type="text"
-                placeholder="Tìm bài hát..."
-                className="bg-transparent border-none outline-none text-sm w-48 text-gray-900 dark:text-gray-100 placeholder:text-gray-500"
-              />
-            </div>
-
-            {/* Theme toggle */}
+          {/* Right side */}
+          <div className="flex items-center gap-1 sm:gap-2">
+            {/* Dark mode toggle */}
             <button
               onClick={toggleDarkMode}
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              aria-label="Toggle theme"
+              aria-label="Đổi giao diện"
             >
-              {darkMode ? (
-                <Sun className="w-5 h-5 text-gray-700 dark:text-gray-300" />
-              ) : (
-                <Moon className="w-5 h-5 text-gray-700 dark:text-gray-300" />
-              )}
+              {darkMode
+                ? <Sun className="w-5 h-5 text-gray-700 dark:text-gray-300" />
+                : <Moon className="w-5 h-5 text-gray-700 dark:text-gray-300" />
+              }
             </button>
 
-            {/* Login/Logout button */}
+            {/* Desktop user area */}
             {user ? (
-              <div className="hidden md:flex items-center gap-3">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {user.name}
-                </span>
+              <div className="relative hidden md:block" ref={userMenuRef}>
                 <button
-                  onClick={logout}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100 transition-colors"
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="flex items-center gap-2 pl-1 pr-3 py-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 >
-                  <LogOut className="w-4 h-4" />
-                  <span>Đăng xuất</span>
+                  <img
+                    src={user.avatar}
+                    alt={user.name}
+                    className="w-8 h-8 rounded-full object-cover border border-gray-200 dark:border-gray-700"
+                  />
+                  <span className="text-sm font-medium text-gray-900 dark:text-white max-w-[120px] truncate">
+                    {user.name}
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${userMenuOpen ? "rotate-180" : ""}`} />
                 </button>
+
+                {userMenuOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-52 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 py-1.5 z-50">
+                    <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-700">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{user.name}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
+                    </div>
+                    <button
+                      onClick={() => { setUserMenuOpen(false); navigate("/profile"); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      <Settings className="w-4 h-4" />
+                      Cài đặt hồ sơ
+                    </button>
+                    <button
+                      onClick={() => { setUserMenuOpen(false); logout(); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Đăng xuất
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
+              // Desktop login button only
               <button
                 onClick={() => openAuthModal("login")}
-                className="hidden md:flex flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                className="hidden md:flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors"
               >
                 <LogIn className="w-4 h-4" />
-                <span>Đăng nhập</span>
+                Đăng nhập
               </button>
             )}
 
-            {/* Mobile menu button */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              aria-label="Toggle menu"
-            >
-              {mobileMenuOpen ? (
-                <X className="w-6 h-6 text-gray-700 dark:text-gray-300" />
-              ) : (
-                <Menu className="w-6 h-6 text-gray-700 dark:text-gray-300" />
-              )}
-            </button>
           </div>
         </div>
       </div>
-
-      {/* Mobile menu */}
-      {mobileMenuOpen && (
-        <div className="md:hidden border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-          <nav className="px-4 py-4 space-y-2">
-            {/* Mobile search */}
-            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2 mb-4">
-              <Search className="w-4 h-4 text-gray-500" />
-              <input
-                type="text"
-                placeholder="Tìm bài hát..."
-                className="bg-transparent border-none outline-none text-sm flex-1 text-gray-900 dark:text-gray-100 placeholder:text-gray-500"
-              />
-            </div>
-
-            <Link
-              to="/"
-              onClick={() => setMobileMenuOpen(false)}
-              className={`block px-3 py-2 rounded-md ${
-                isActive("/")
-                  ? "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
-                  : "text-gray-700 dark:text-gray-300"
-              }`}
-            >
-              Home
-            </Link>
-            <Link
-              to="/songs"
-              onClick={() => setMobileMenuOpen(false)}
-              className={`block px-3 py-2 rounded-md ${
-                isActive("/songs")
-                  ? "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
-                  : "text-gray-700 dark:text-gray-300"
-              }`}
-            >
-              Bài hát
-            </Link>
-            {user && (
-              <Link
-                to="/my-chords"
-                onClick={() => setMobileMenuOpen(false)}
-                className={`block px-3 py-2 rounded-md ${
-                  isActive("/my-chords")
-                    ? "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
-                    : "text-gray-700 dark:text-gray-300"
-                }`}
-              >
-                Hợp âm của tôi
-              </Link>
-            )}
-            <Link
-              to="/profile"
-              onClick={() => setMobileMenuOpen(false)}
-              className={`block px-3 py-2 rounded-md ${
-                isActive("/profile")
-                  ? "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
-                  : "text-gray-700 dark:text-gray-300"
-              }`}
-            >
-              Profile
-            </Link>
-            <Link
-              to="/help"
-              onClick={() => setMobileMenuOpen(false)}
-              className={`block px-3 py-2 rounded-md ${
-                isActive("/help")
-                  ? "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
-                  : "text-gray-700 dark:text-gray-300"
-              }`}
-            >
-              Help
-            </Link>
-
-            <div className="pt-4 mt-2 border-t border-gray-200 dark:border-gray-800">
-              {user ? (
-                <button
-                  onClick={() => { logout(); setMobileMenuOpen(false); }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
-                >
-                  <LogOut className="w-5 h-5" />
-                  <span>Đăng xuất ({user.name})</span>
-                </button>
-              ) : (
-                <button
-                  onClick={() => { openAuthModal("login"); setMobileMenuOpen(false); }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-md bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition"
-                >
-                  <LogIn className="w-5 h-5" />
-                  <span>Đăng nhập</span>
-                </button>
-              )}
-            </div>
-          </nav>
-        </div>
-      )}
     </header>
   );
 }

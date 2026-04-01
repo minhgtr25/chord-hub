@@ -10,12 +10,14 @@ import type { Song, LyricLine } from "../lib/songsService";
 import { ArrowLeft, Info, Music, Edit3, Square, CheckSquare, Loader2 } from "lucide-react";
 import { transposeChord, lyricsToRawText, rawTextToLyrics } from "../utils/chordUtils";
 import { useAuth } from "../utils/AuthContext";
-
+import DesktopOnly from "../components/DesktopOnly";
+import { useToast } from "../utils/ToastContext";
 
 export default function SongEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, openAuthModal } = useAuth();
+  const { showToast } = useToast();
 
   const [song, setSong] = useState<Song | null>(null);
   const [songLoading, setSongLoading] = useState(true);
@@ -163,13 +165,12 @@ export default function SongEditor() {
     if (!song || !user) return;
     const result = await saveSong(song, user.id);
     if (result.success) {
-      alert("Đã lưu bài hát thành công!");
-      // If it was a new song, navigate to the real ID
+      showToast("Đã lưu bài hát thành công!", "success");
       if (id === "new" && result.id) {
         navigate(`/editor/${result.id}`, { replace: true });
       }
     } else {
-      alert(`Lỗi khi lưu: ${result.error}`);
+      showToast(`Lỗi khi lưu: ${result.error}`, "error");
     }
   };
 
@@ -199,17 +200,11 @@ export default function SongEditor() {
     const newSong = { ...song, key: selectedKey };
     addToHistory(newSong);
     setShowKeyDialog(false);
-    alert(`Đã chuyển key từ ${song.key} sang ${selectedKey}`);
+    showToast(`Đã chuyển key từ ${song.key} sang ${selectedKey}`, "success");
   };
 
   const handleAutoDetect = () => {
-    alert(
-      "Tính năng tự động dò hợp âm đang được phát triển.\n\n" +
-      "Tính năng này sẽ:\n" +
-      "- Upload file âm thanh hoặc ghi âm từ microphone\n" +
-      "- Sử dụng AI để nhận diện hợp âm\n" +
-      "- Tự động thêm hợp âm vào đúng thời điểm"
-    );
+    showToast("Tính năng tự động dò hợp âm đang được phát triển", "info");
   };
 
   const handleZoomIn = () => {
@@ -243,6 +238,7 @@ export default function SongEditor() {
   ).filter(Boolean);
 
   return (
+    <DesktopOnly>
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       <Header />
 
@@ -331,8 +327,8 @@ export default function SongEditor() {
               onUndo={handleUndo}
               onRedo={handleRedo}
               onSave={handleSave}
-              onAddChord={() => alert("Tính năng thêm hợp âm đang được phát triển")}
-              onDeleteChord={() => alert("Tính năng xóa hợp âm đang được phát triển")}
+              onAddChord={() => showToast("Tính năng thêm hợp âm đang được phát triển", "info")}
+              onDeleteChord={() => showToast("Tính năng xóa hợp âm đang được phát triển", "info")}
               onToggleChords={setChordsVisible}
               onZoomIn={handleZoomIn}
               onZoomOut={handleZoomOut}
@@ -531,5 +527,6 @@ export default function SongEditor() {
 
       <Footer />
     </div>
+    </DesktopOnly>
   );
 }

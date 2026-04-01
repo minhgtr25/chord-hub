@@ -61,10 +61,10 @@ export default function SongCard({ song, view = "grid", showEditButton = false }
           {showEditButton && (
             <Link
               to={`/editor/${song.id}`}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm transition-colors"
+              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm transition-colors"
             >
               <Edit className="w-4 h-4" />
-              <span className="hidden sm:inline">Sửa</span>
+              <span>Sửa</span>
             </Link>
           )}
         </div>
@@ -121,7 +121,7 @@ export default function SongCard({ song, view = "grid", showEditButton = false }
           {showEditButton && (
             <Link
               to={`/editor/${song.id}`}
-              className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 transition-colors text-sm"
+              className="hidden lg:flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 transition-colors text-sm"
             >
               <Edit className="w-4 h-4" />
               <span>Sửa</span>

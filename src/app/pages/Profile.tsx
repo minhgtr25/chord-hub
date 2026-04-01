@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
-import { User, Mail, Music, Calendar, Settings, Save, LogIn } from "lucide-react";
+import { User, Mail, Music, Calendar, Settings, Save, LogIn, LogOut } from "lucide-react";
 import { useAuth } from "../utils/AuthContext";
 import { getSongs, getSongsByAuthor } from "../lib/songsService";
+import { useToast } from "../utils/ToastContext";
 
 export default function Profile() {
-  const { user, openAuthModal, updateProfile } = useAuth();
+  const { user, openAuthModal, updateProfile, logout } = useAuth();
+  const { showToast } = useToast();
   const [allCount, setAllCount] = useState(0);
   const [myCount, setMyCount] = useState(0);
   const [lineCount, setLineCount] = useState(0);
@@ -53,8 +55,7 @@ export default function Profile() {
 
 
   const handleSave = () => {
-    // updateProfile is called on each field change below, so this is just a confirmation
-    alert("Đã lưu thông tin profile!");
+    showToast("Đã lưu thông tin profile!", "success");
   };
 
   return (
@@ -198,6 +199,16 @@ export default function Profile() {
               <Calendar className="w-5 h-5" />
               <span>Thành viên từ {user.createdAt}</span>
             </div>
+          </div>
+          {/* Logout — prominent on mobile */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            <button
+              onClick={logout}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 font-medium transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              Đăng xuất
+            </button>
           </div>
         </div>
       </main>

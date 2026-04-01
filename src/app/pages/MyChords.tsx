@@ -7,6 +7,7 @@ import { getSongsByAuthor } from "../lib/songsService";
 import type { Song } from "../lib/songsService";
 import { useAuth } from "../utils/AuthContext";
 import { Plus, Search, Grid, List, Music2, LogIn, Loader2 } from "lucide-react";
+import DesktopOnly from "../components/DesktopOnly";
 
 export default function MyChords() {
   const { user, openAuthModal } = useAuth();
@@ -28,6 +29,7 @@ export default function MyChords() {
   // Not logged in
   if (!user) {
     return (
+      <DesktopOnly>
       <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
         <Header />
         <main className="flex-1 flex items-center justify-center px-4">
@@ -52,6 +54,7 @@ export default function MyChords() {
         </main>
         <Footer />
       </div>
+      </DesktopOnly>
     );
   }
 
@@ -61,6 +64,7 @@ export default function MyChords() {
   );
 
   return (
+    <DesktopOnly>
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       <Header />
 
@@ -77,7 +81,7 @@ export default function MyChords() {
           </div>
           <Link
             to="/editor/new"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors shrink-0"
+            className="hidden lg:inline-flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors shrink-0"
           >
             <Plus className="w-5 h-5" />
             Tạo bài hát mới
@@ -179,5 +183,6 @@ export default function MyChords() {
 
       <Footer />
     </div>
+    </DesktopOnly>
   );
 }
