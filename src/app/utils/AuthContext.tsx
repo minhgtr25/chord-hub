@@ -15,16 +15,27 @@ export interface User {
   createdAt: string;
 }
 
+// After OAuth login, if profile is incomplete (e.g. Facebook without email)
+export interface PendingOAuthProfile {
+  provider: "google" | "facebook";
+  supabaseUser: SupabaseUser;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
   isAuthModalOpen: boolean;
   authView: AuthView;
+  // After OAuth login if profile needs info (Facebook)
+  pendingOAuthProfile: PendingOAuthProfile | null;
   openAuthModal: (view?: AuthView) => void;
   closeAuthModal: () => void;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  verifyOtp: (email: string, token: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithOAuth: (provider: "google" | "facebook") => Promise<void>;
+  completePendingProfile: (name: string, email: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<Pick<User, "name" | "bio" | "instrument" | "avatar">>) => Promise<void>;
 }
@@ -33,15 +44,36 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Convert Supabase user + profile to our User type
 function buildUser(supabaseUser: SupabaseUser, profile?: Record<string, unknown> | null): User {
+  const meta = supabaseUser.user_metadata || {};
   return {
     id: supabaseUser.id,
-    name: (profile?.name as string) || supabaseUser.email?.split("@")[0] || "User",
-    email: supabaseUser.email || "",
-    avatar: (profile?.avatar_url as string) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${supabaseUser.email}`,
+    name:
+      (profile?.name as string) ||
+      (meta.full_name as string) ||
+      (meta.name as string) ||
+      supabaseUser.email?.split("@")[0] ||
+      "User",
+    email: supabaseUser.email || (meta.email as string) || "",
+    avatar:
+      (profile?.avatar_url as string) ||
+      (meta.avatar_url as string) ||
+      (meta.picture as string) ||
+      `https://api.dicebear.com/7.x/avataaars/svg?seed=${supabaseUser.id}`,
     bio: (profile?.bio as string) || undefined,
     instrument: (profile?.instrument as string) || "Guitar",
     createdAt: (profile?.created_at as string) || supabaseUser.created_at,
   };
+}
+
+// Check if a user from OAuth is missing critical info (mainly Facebook without email)
+function needsProfileCompletion(supabaseUser: SupabaseUser): boolean {
+  const provider = supabaseUser.app_metadata?.provider;
+  if (provider === "facebook") {
+    // Facebook may not return email; check
+    const email = supabaseUser.email || supabaseUser.user_metadata?.email;
+    return !email;
+  }
+  return false;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -50,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authView, setAuthView] = useState<AuthView>("login");
+  const [pendingOAuthProfile, setPendingOAuthProfile] = useState<PendingOAuthProfile | null>(null);
 
   // Load profile from Supabase
   async function fetchProfile(supabaseUser: SupabaseUser) {
@@ -63,23 +96,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Listen to auth state changes
   useEffect(() => {
-    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
-        fetchProfile(session.user).finally(() => setLoading(false));
+        const sbUser = session.user;
+        if (needsProfileCompletion(sbUser)) {
+          const provider = sbUser.app_metadata?.provider as "google" | "facebook";
+          setPendingOAuthProfile({ provider, supabaseUser: sbUser });
+          setIsAuthModalOpen(true);
+          setLoading(false);
+        } else {
+          fetchProfile(sbUser).finally(() => setLoading(false));
+        }
       } else {
         setLoading(false);
       }
     });
 
-    // Subscribe to auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       if (session?.user) {
-        fetchProfile(session.user);
+        const sbUser = session.user;
+        if (needsProfileCompletion(sbUser)) {
+          const provider = sbUser.app_metadata?.provider as "google" | "facebook";
+          setPendingOAuthProfile({ provider, supabaseUser: sbUser });
+          setIsAuthModalOpen(true);
+        } else {
+          setPendingOAuthProfile(null);
+          fetchProfile(sbUser);
+          // Auto-close modal on successful OAuth login (Google)
+          if (event === "SIGNED_IN") {
+            setIsAuthModalOpen(false);
+          }
+        }
       } else {
         setUser(null);
+        setPendingOAuthProfile(null);
       }
     });
 
@@ -91,15 +143,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthModalOpen(true);
   };
 
-  const closeAuthModal = () => setIsAuthModalOpen(false);
+  const closeAuthModal = () => {
+    setIsAuthModalOpen(false);
+    setPendingOAuthProfile(null);
+  };
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      // Translate Supabase error messages to Vietnamese
-      const msg = error.message.includes("Invalid login credentials")
-        ? "Email hoặc mật khẩu không đúng"
-        : error.message;
+      let msg = error.message;
+      if (msg.includes("Invalid login credentials")) msg = "Email hoặc mật khẩu không đúng";
+      else if (msg.includes("Email not confirmed")) msg = "Email chưa được xác minh. Kiểm tra hộp thư của bạn";
       return { success: false, error: msg };
     }
     closeAuthModal();
@@ -111,16 +165,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       password,
       options: {
-        data: { name }, // stored in raw_user_meta_data, trigger uses it
+        data: { name },
+        // Use OTP email confirmation
+        emailRedirectTo: undefined,
       },
     });
     if (error) {
-      const msg = error.message.includes("already registered")
-        ? "Email này đã được đăng ký"
-        : error.message;
+      let msg = error.message;
+      if (msg.includes("already registered") || msg.includes("already been registered")) {
+        msg = "Email này đã được đăng ký. Hãy thử đăng nhập.";
+      }
       return { success: false, error: msg };
     }
-    closeAuthModal();
+    // Don't close modal — caller will switch to OTP step
+    return { success: true };
+  };
+
+  const verifyOtp = async (email: string, token: string): Promise<{ success: boolean; error?: string }> => {
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: "signup",
+    });
+    if (error) {
+      let msg = error.message;
+      if (msg.includes("Token has expired") || msg.includes("invalid")) {
+        msg = "Mã không hợp lệ hoặc đã hết hạn. Vui lòng thử lại.";
+      }
+      return { success: false, error: msg };
+    }
+    // After OTP verify, Supabase signs them in automatically — sign them out so they log in manually
+    await supabase.auth.signOut();
+    return { success: true };
+  };
+
+  const loginWithOAuth = async (provider: "google" | "facebook") => {
+    const redirectTo = `${window.location.origin}/`;
+    await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo,
+        scopes: provider === "facebook" ? "email,public_profile" : undefined,
+      },
+    });
+  };
+
+  const completePendingProfile = async (name: string, email: string): Promise<{ success: boolean; error?: string }> => {
+    if (!pendingOAuthProfile) return { success: false, error: "Không có thông tin chờ xử lý" };
+    const { supabaseUser } = pendingOAuthProfile;
+
+    // Update auth email if missing
+    if (!supabaseUser.email && email) {
+      const { error: emailError } = await supabase.auth.updateUser({ email });
+      if (emailError) return { success: false, error: emailError.message };
+    }
+
+    // Update profile
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .upsert({ id: supabaseUser.id, name, avatar_url: buildUser(supabaseUser).avatar }, { onConflict: "id" });
+
+    if (profileError) return { success: false, error: profileError.message };
+
+    setPendingOAuthProfile(null);
+    await fetchProfile(supabaseUser);
+    setIsAuthModalOpen(false);
     return { success: true };
   };
 
@@ -128,6 +237,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
+    setPendingOAuthProfile(null);
   };
 
   const updateProfile = async (updates: Partial<Pick<User, "name" | "bio" | "instrument" | "avatar">>) => {
@@ -138,14 +248,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (updates.instrument !== undefined) dbUpdates.instrument = updates.instrument;
     if (updates.avatar !== undefined) dbUpdates.avatar_url = updates.avatar;
 
-    const { error } = await supabase
-      .from("profiles")
-      .update(dbUpdates)
-      .eq("id", user.id);
-
-    if (!error) {
-      setUser({ ...user, ...updates });
-    }
+    const { error } = await supabase.from("profiles").update(dbUpdates).eq("id", user.id);
+    if (!error) setUser({ ...user, ...updates });
   };
 
   return (
@@ -156,10 +260,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         isAuthModalOpen,
         authView,
+        pendingOAuthProfile,
         openAuthModal,
         closeAuthModal,
         login,
         register,
+        verifyOtp,
+        loginWithOAuth,
+        completePendingProfile,
         logout,
         updateProfile,
       }}
